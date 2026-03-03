@@ -4,7 +4,7 @@
     {
       "name": "Feynegoce Server",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["server.js"],
+      "runtimeArgs": ["index.js"],
       "port": 3000
     },
     {
