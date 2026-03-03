@@ -652,7 +652,7 @@ nameInput.addEventListener('input',    () => { if (nameInput.value.trim())      
 emailInput.addEventListener('input',   () => { if (isEmail(emailInput.value))     clearError(emailInput,   emailError); });
 messageInput.addEventListener('input', () => { if (messageInput.value.trim())     clearError(messageInput, messageError); });
 
-form.addEventListener('submit', e => {
+form.addEventListener('submit', async e => {
   e.preventDefault();
   let valid = true;
 
@@ -668,16 +668,41 @@ form.addEventListener('submit', e => {
   if (!valid) return;
 
   const btn = form.querySelector('button[type="submit"]');
-  btn.textContent = '\u2026';
-  btn.disabled    = true;
+  btn.textContent   = '\u2026';
+  btn.disabled      = true;
   btn.style.opacity = '.6';
 
-  setTimeout(() => {
+  try {
+    const res  = await fetch('/api/contact', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name:    nameInput.value.trim(),
+        company: document.getElementById('company').value.trim(),
+        email:   emailInput.value.trim(),
+        subject: document.getElementById('subject').value,
+        message: messageInput.value.trim(),
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Server error');
+
     form.reset();
+    formSuccess.classList.add('visible');
+    setTimeout(() => formSuccess.classList.remove('visible'), 6000);
+
+  } catch (err) {
+    console.error('[Contact]', err);
+    const errEl = document.createElement('p');
+    errEl.className = 'form-server-error';
+    errEl.textContent = err.message || 'Something went wrong \u2014 please try again.';
+    form.appendChild(errEl);
+    setTimeout(() => errEl.remove(), 5000);
+
+  } finally {
     btn.textContent   = t('contact.submit');
     btn.disabled      = false;
     btn.style.opacity = '';
-    formSuccess.classList.add('visible');
-    setTimeout(() => formSuccess.classList.remove('visible'), 6000);
-  }, 1400);
+  }
 });
