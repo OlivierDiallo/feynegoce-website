@@ -495,6 +495,50 @@ header {
   align-items: start;
 }
 
+/* SERVICES */
+.services-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  margin-top: 48px;
+  background: var(--border);
+}
+
+.service-card {
+  background: var(--white);
+  padding: 40px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: background .2s;
+}
+
+.service-card:hover { background: #f8f6f3; }
+
+.service-num {
+  font-size: 2.8rem;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -.03em;
+  line-height: 1;
+}
+
+.service-card h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.service-card p {
+  font-size: .88rem;
+  color: var(--mid);
+  line-height: 1.75;
+}
+
+.services-cta {
+  margin-top: 48px;
+  text-align: center;
+}
+
 .contact-info h2 { margin-bottom: 16px; }
 
 .contact-info > p {
@@ -835,6 +879,8 @@ header {
   .hero h1 { font-size: 2.6rem; }
 
   .hero-actions { flex-direction: column; }
+
+  .services-grid { grid-template-columns: 1fr; }
 
   .contact-form { padding: 28px 20px; }
 
