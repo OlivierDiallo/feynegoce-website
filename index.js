@@ -5,6 +5,8 @@ const fs       = require('fs');
 const path     = require('path');
 const cron     = require('node-cron');
 
+const cookieParser = require('cookie-parser');
+
 const db              = require('./lib/db');
 const { getVesselPosition } = require('./lib/tracking');
 const { notifyAll }         = require('./lib/mailer');
@@ -17,6 +19,7 @@ const PORT = process.env.PORT || 3000;
    ============================================================ */
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 /* ============================================================
@@ -59,6 +62,50 @@ app.post('/api/contact', (req, res) => {
   console.log(`[Contact] ${entry.timestamp} — ${entry.name} <${entry.email}>`);
   res.json({ ok: true });
 });
+
+/* ============================================================
+   INVESTOR DASHBOARD — API + React app at /dashboard
+   ============================================================ */
+const DASH_DIST = path.join(__dirname, 'investor-dashboard', 'client', 'dist');
+
+// Mount investor API routes
+app.use('/api/v1/auth',      require('./investor-dashboard/server/routes/auth'));
+app.use('/api/v1/shipments', require('./investor-dashboard/server/routes/shipments'));
+app.use('/api/v1/reports',   require('./investor-dashboard/server/routes/reports'));
+app.use('/api/v1/users',     require('./investor-dashboard/server/routes/users'));
+
+// Audit log endpoint
+const { requireAdmin: requireAdminV1 } = require('./investor-dashboard/server/middleware/auth');
+const prismaV1 = require('./investor-dashboard/server/lib/prisma');
+app.get('/api/v1/audit-log', requireAdminV1, async (req, res) => {
+  const { entity_type, from, to } = req.query;
+  const where = {};
+  if (entity_type) where.entityType = entity_type;
+  if (from || to) {
+    where.timestamp = {};
+    if (from) where.timestamp.gte = new Date(from);
+    if (to)   where.timestamp.lte = new Date(to);
+  }
+  try {
+    const rawLogs = await prismaV1.auditLog.findMany({
+      where, include: { user: { select: { id: true, name: true, email: true } } },
+      orderBy: { timestamp: 'desc' }, take: 500,
+    });
+    const logs = rawLogs.map(l => ({
+      ...l,
+      oldValues: l.oldValues ? JSON.parse(l.oldValues) : null,
+      newValues: l.newValues ? JSON.parse(l.newValues) : null,
+    }));
+    res.json({ ok: true, logs });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+// Serve React app static assets under /dashboard
+app.use('/dashboard', express.static(DASH_DIST));
+
+// Any /dashboard/* route falls through to React's index.html
+app.get('/dashboard', (_req, res) => res.sendFile(path.join(DASH_DIST, 'index.html')));
+app.get('/dashboard/*', (_req, res) => res.sendFile(path.join(DASH_DIST, 'index.html')));
 
 /* ============================================================
    FALLBACK — serve index.html for all non-API GET routes

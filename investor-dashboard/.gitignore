@@ -3,5 +3,4 @@ node_modules/
 prisma/dev.db
 prisma/dev.db-journal
 prisma/prisma/
-client/dist/
 client/node_modules/
