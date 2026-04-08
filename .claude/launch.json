@@ -3,9 +3,21 @@
   "configurations": [
     {
       "name": "Feynegoce Server",
-      "runtimeExecutable": "node",
+      "runtimeExecutable": "/usr/local/bin/node",
       "runtimeArgs": ["index.js"],
       "port": 3000
+    },
+    {
+      "name": "Investor API",
+      "runtimeExecutable": "/usr/local/bin/node",
+      "runtimeArgs": ["investor-dashboard/server/index.js"],
+      "port": 3001
+    },
+    {
+      "name": "Investor Dashboard",
+      "runtimeExecutable": "/usr/local/bin/node",
+      "runtimeArgs": ["investor-dashboard/client/dev.mjs"],
+      "port": 5173
     },
     {
       "name": "Static Site (Python fallback)",

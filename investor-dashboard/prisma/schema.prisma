@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// NOTE: SQLite dev schema — switch provider to "postgresql" and restore @db.Decimal/@db.Date for production
+
+model User {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  passwordHash      String   @map("password_hash")
+  name              String
+  role              String   // "admin" | "investor"
+  notificationPrefs String   @default("{}") @map("notification_prefs")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  splits    ShipmentInvestorSplit[]
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  shipments Shipment[]
+
+  @@map("products")
+}
+
+model Shipment {
+  id              String    @id @default(uuid())
+  productId       String    @map("product_id")
+  reference       String    @unique
+  origin          String
+  destination     String
+  quantity        Int
+  quantityUnit    String    @map("quantity_unit")
+  costOfGoods     Float     @map("cost_of_goods")
+  currency        String    @default("EUR")
+  targetMarginPct Float     @map("target_margin_pct")
+  eta             DateTime?
+  status          String    @default("pending")
+  trackingNumber  String?   @map("tracking_number")
+  notes           String?
+  deletedAt       DateTime? @map("deleted_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  product    Product                 @relation(fields: [productId], references: [id])
+  expenses   ShipmentExpense[]
+  sales      ShipmentSale[]
+  splits     ShipmentInvestorSplit[]
+  milestones ShipmentMilestone[]
+
+  @@map("shipments")
+}
+
+model ShipmentExpense {
+  id          String   @id @default(uuid())
+  shipmentId  String   @map("shipment_id")
+  category    String
+  description String?
+  amount      Float
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@map("shipment_expenses")
+}
+
+model ShipmentInvestorSplit {
+  id         String   @id @default(uuid())
+  shipmentId String   @map("shipment_id")
+  userId     String   @map("user_id")
+  splitPct   Float    @map("split_pct")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@unique([shipmentId, userId])
+  @@map("shipment_investor_splits")
+}
+
+model ShipmentSale {
+  id              String   @id @default(uuid())
+  shipmentId      String   @map("shipment_id")
+  customerName    String   @map("customer_name")
+  quantitySold    Int      @map("quantity_sold")
+  sellingPrice    Float    @map("selling_price")
+  actualMarginPct Float    @map("actual_margin_pct")
+  marginDelta     Float    @map("margin_delta")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@map("shipment_sales")
+}
+
+model ShipmentMilestone {
+  id            String   @id @default(uuid())
+  shipmentId    String   @map("shipment_id")
+  milestoneType String   @map("milestone_type")
+  occurredAt    DateTime @map("occurred_at")
+  notes         String?
+  source        String   @default("manual")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@map("shipment_milestones")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  oldValues  String?  @map("old_values")
+  newValues  String?  @map("new_values")
+  timestamp  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("audit_log")
+}

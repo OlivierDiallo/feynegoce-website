@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Feynegoce — Admin Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="dashboard.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+</head>
+<body>
+<div class="dash-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <a href="/">Feynegoce<span>.</span></a>
+      <div class="sidebar-role">Admin Panel</div>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-tab="shipments">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Shipments
+      </button>
+      <button class="nav-item" data-tab="finance">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        Finance
+      </button>
+      <div class="nav-section-label">Management</div>
+      <button class="nav-item" data-tab="users">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        Investors & Users
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar" id="sidebarAvatar">A</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebarName">Admin</div>
+          <div class="user-email" id="sidebarEmail">admin@feynegoce.com</div>
+        </div>
+        <button class="btn-logout" title="Sign out" onclick="logout()">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-content">
+    <div class="top-bar">
+      <span class="top-bar-title" id="topBarTitle">Shipments</span>
+      <div class="top-bar-actions">
+        <button class="btn btn-primary" id="topBarAction" onclick="openShipmentModal()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New Shipment
+        </button>
+      </div>
+    </div>
+
+    <div class="page-content">
+
+      <!-- ===================== SHIPMENTS TAB ===================== -->
+      <div class="tab-panel active" id="tab-shipments">
+        <div class="stats-grid" id="shipmentStats"></div>
+        <div id="shipmentsContainer">
+          <div class="empty-state"><p>Loading shipments…</p></div>
+        </div>
+      </div>
+
+      <!-- ===================== FINANCE TAB ===================== -->
+      <div class="tab-panel" id="tab-finance">
+        <div class="stats-grid" id="financeStats"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;" id="financeChartRow">
+          <div class="card">
+            <div class="card-header"><span class="card-title">Revenue vs Expenses (12 months)</span></div>
+            <div class="card-body"><div class="chart-wrap"><canvas id="revenueChart"></canvas></div></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">Stakeholder Breakdown</span></div>
+            <div class="card-body" id="stakeholderBreakdown"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Transactions</span>
+            <button class="btn btn-primary btn-sm" onclick="openTxModal()">
+              <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Transaction
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Date</th><th>Description</th><th>Category</th>
+                <th>Type</th><th style="text-align:right">Amount</th><th></th>
+              </tr></thead>
+              <tbody id="txTableBody"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===================== USERS TAB ===================== -->
+      <div class="tab-panel" id="tab-users">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Users & Investors</span>
+            <button class="btn btn-primary btn-sm" onclick="openUserModal()">
+              <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add User
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Share %</th><th>Joined</th><th></th></tr></thead>
+              <tbody id="usersTableBody"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Share Allocation</span></div>
+          <div class="card-body">
+            <div id="shareAllocation" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <span style="color:var(--muted);font-size:.875rem">Loading…</span>
+            </div>
+            <p style="margin-top:10px;font-size:.75rem;color:var(--muted)" id="shareTotal"></p>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /page-content -->
+  </main>
+</div>
+
+<!-- =================== SHIPMENT MODAL =================== -->
+<div class="modal-overlay" id="shipmentModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="shipmentModalTitle">New Shipment</span>
+      <button class="modal-close" onclick="closeModal('shipmentModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="sm-id"/>
+      <div class="form-row">
+        <div class="form-group" style="grid-column:1/-1">
+          <label>Shipment Title *</label>
+          <input class="form-control" id="sm-title" placeholder="e.g. Tomket Tires — Batch 1"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Supplier</label>
+          <input class="form-control" id="sm-supplier" placeholder="e.g. Tomket CZ"/>
+        </div>
+        <div class="form-group">
+          <label>Total Value (EUR)</label>
+          <input class="form-control" id="sm-value" type="number" placeholder="0.00"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Origin Port</label>
+          <input class="form-control" id="sm-origin" placeholder="e.g. Shanghai"/>
+        </div>
+        <div class="form-group">
+          <label>Destination Port</label>
+          <input class="form-control" id="sm-dest" placeholder="e.g. Dakar"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Vessel IMO Number</label>
+          <input class="form-control" id="sm-imo" placeholder="e.g. 9234567"/>
+          <div class="form-hint">Used for live vessel tracking via Marine Traffic API</div>
+        </div>
+        <div class="form-group">
+          <label>Container Number</label>
+          <input class="form-control" id="sm-container" placeholder="e.g. MSCU1234567"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Expected Departure</label>
+          <input class="form-control" id="sm-departure" type="date"/>
+        </div>
+        <div class="form-group">
+          <label>Expected Arrival</label>
+          <input class="form-control" id="sm-arrival" type="date"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Status</label>
+          <select class="form-control" id="sm-status">
+            <option value="pending_payment">Pending Payment</option>
+            <option value="paid">Paid</option>
+            <option value="loading">Loading</option>
+            <option value="in_transit">In Transit</option>
+            <option value="arrived">Arrived</option>
+            <option value="delivered">Delivered</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Payment Status</label>
+          <select class="form-control" id="sm-paystatus">
+            <option value="pending">Pending</option>
+            <option value="partial">Partial</option>
+            <option value="paid">Paid</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Payment Amount (EUR)</label>
+        <input class="form-control" id="sm-payamount" type="number" placeholder="0.00"/>
+      </div>
+      <div class="form-group">
+        <label>Description / Notes</label>
+        <textarea class="form-control" id="sm-notes" placeholder="Additional notes…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('shipmentModal')">Cancel</button>
+      <button class="btn btn-primary" id="smSaveBtn" onclick="saveShipment()">Create Shipment</button>
+    </div>
+  </div>
+</div>
+
+<!-- =================== TRACKING MODAL =================== -->
+<div class="modal-overlay" id="trackModal">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <span class="modal-title" id="trackModalTitle">Track Shipment</span>
+      <button class="modal-close" onclick="closeModal('trackModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="trackMap"></div>
+      <div id="trackInfo" style="margin-top:16px"></div>
+      <div style="margin-top:20px">
+        <div class="card-title" style="margin-bottom:12px;font-size:.875rem">Event Log</div>
+        <div class="timeline" id="trackTimeline"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =================== TRANSACTION MODAL =================== -->
+<div class="modal-overlay" id="txModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="txModalTitle">Add Transaction</span>
+      <button class="modal-close" onclick="closeModal('txModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="tx-id"/>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Type *</label>
+          <select class="form-control" id="tx-type">
+            <option value="revenue">Revenue</option>
+            <option value="expense">Expense</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select class="form-control" id="tx-category">
+            <option>Goods</option><option>Freight</option><option>Customs</option>
+            <option>Insurance</option><option>Commission</option>
+            <option>Operations</option><option>Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Description *</label>
+        <input class="form-control" id="tx-desc" placeholder="e.g. Payment received from buyer"/>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Amount (EUR) *</label>
+          <input class="form-control" id="tx-amount" type="number" step="0.01" placeholder="0.00"/>
+        </div>
+        <div class="form-group">
+          <label>Date *</label>
+          <input class="form-control" id="tx-date" type="date"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('txModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTransaction()">Save Transaction</button>
+    </div>
+  </div>
+</div>
+
+<!-- =================== USER MODAL =================== -->
+<div class="modal-overlay" id="userModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="userModalTitle">Add User</span>
+      <button class="modal-close" onclick="closeModal('userModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="um-id"/>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Full Name *</label>
+          <input class="form-control" id="um-name" placeholder="e.g. Jean Dupont"/>
+        </div>
+        <div class="form-group">
+          <label>Email *</label>
+          <input class="form-control" id="um-email" type="email" placeholder="jean@example.com"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Password *</label>
+          <input class="form-control" id="um-password" type="password" placeholder="Min. 8 characters"/>
+          <div class="form-hint" id="um-pw-hint">Required for new users. Leave blank to keep existing password when editing.</div>
+        </div>
+        <div class="form-group">
+          <label>Role *</label>
+          <select class="form-control" id="um-role">
+            <option value="investor">Investor</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Profit Share (%)</label>
+        <input class="form-control" id="um-share" type="number" min="0" max="100" step="0.1" placeholder="e.g. 33"/>
+        <div class="form-hint">Percentage of net profit this user receives.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('userModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveUser()">Save User</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast stack -->
+<div class="toast-stack" id="toastStack"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="app.js"></script>
+<script>
+  initDashboard('admin');
+</script>
+</body>
+</html>

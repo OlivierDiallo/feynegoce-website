@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Feynegoce — Investor Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="dashboard.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+</head>
+<body>
+<div class="dash-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <a href="/">Feynegoce<span>.</span></a>
+      <div class="sidebar-role">Investor Portal</div>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-tab="shipments">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Shipments
+      </button>
+      <button class="nav-item" data-tab="finance">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        My Returns
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar" id="sidebarAvatar">I</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebarName">Investor</div>
+          <div class="user-email" id="sidebarEmail">—</div>
+        </div>
+        <button class="btn-logout" title="Sign out" onclick="logout()">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-content">
+    <div class="top-bar">
+      <span class="top-bar-title" id="topBarTitle">Active Shipments</span>
+      <div class="top-bar-actions">
+        <span style="font-size:.8125rem;color:var(--muted)">Read-only view</span>
+      </div>
+    </div>
+
+    <div class="page-content">
+
+      <!-- ===================== SHIPMENTS TAB ===================== -->
+      <div class="tab-panel active" id="tab-shipments">
+        <div class="stats-grid" id="shipmentStats"></div>
+        <div id="shipmentsContainer">
+          <div class="empty-state"><p>Loading shipments…</p></div>
+        </div>
+      </div>
+
+      <!-- ===================== FINANCE TAB ===================== -->
+      <div class="tab-panel" id="tab-finance">
+        <div class="stats-grid" id="financeStats"></div>
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-header"><span class="card-title">Your Earnings Over Time</span></div>
+          <div class="card-body"><div class="chart-wrap"><canvas id="revenueChart"></canvas></div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Transaction History</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Date</th><th>Description</th><th>Category</th>
+                <th>Type</th><th style="text-align:right">Your Share</th>
+              </tr></thead>
+              <tbody id="txTableBody"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- =================== TRACKING MODAL =================== -->
+<div class="modal-overlay" id="trackModal">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <span class="modal-title" id="trackModalTitle">Track Shipment</span>
+      <button class="modal-close" onclick="closeModal('trackModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="trackMap"></div>
+      <div id="trackInfo" style="margin-top:16px"></div>
+      <div style="margin-top:20px">
+        <div class="card-title" style="margin-bottom:12px;font-size:.875rem">Event Log</div>
+        <div class="timeline" id="trackTimeline"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast stack -->
+<div class="toast-stack" id="toastStack"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="app.js"></script>
+<script>
+  initDashboard('investor');
+</script>
+</body>
+</html>
