@@ -23,7 +23,7 @@ export function AuthProvider({ children }) {
   async function logout() {
     await api.post('/auth/logout').catch(() => {})
     setUser(null)
-    window.location.href = '/login'
+    window.location.href = '/dashboard/login'
   }
 
   return (

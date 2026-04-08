@@ -10,8 +10,8 @@ const api = axios.create({
 api.interceptors.response.use(
   res => res,
   err => {
-    if (err.response?.status === 401 && window.location.pathname !== '/login') {
-      window.location.href = '/login'
+    if (err.response?.status === 401 && !window.location.pathname.endsWith('/login')) {
+      window.location.href = '/dashboard/login'
     }
     return Promise.reject(err)
   }

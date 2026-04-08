@@ -30,6 +30,16 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
+
+/* ============================================================
+   INVESTOR DASHBOARD — React app at /dashboard
+   Must be mounted BEFORE public static (public/dashboard/ exists)
+   ============================================================ */
+const DASH_DIST = path.join(__dirname, 'investor-dashboard', 'client', 'dist');
+app.use('/dashboard', express.static(DASH_DIST));
+app.get('/dashboard', (_req, res) => res.sendFile(path.join(DASH_DIST, 'index.html')));
+app.get('/dashboard/*', (_req, res) => res.sendFile(path.join(DASH_DIST, 'index.html')));
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 /* ============================================================
@@ -74,11 +84,8 @@ app.post('/api/contact', (req, res) => {
 });
 
 /* ============================================================
-   INVESTOR DASHBOARD — API + React app at /dashboard
+   INVESTOR DASHBOARD — API routes
    ============================================================ */
-const DASH_DIST = path.join(__dirname, 'investor-dashboard', 'client', 'dist');
-
-// Mount investor API routes
 app.use('/api/v1/auth',      require('./investor-dashboard/server/routes/auth'));
 app.use('/api/v1/shipments', require('./investor-dashboard/server/routes/shipments'));
 app.use('/api/v1/reports',   require('./investor-dashboard/server/routes/reports'));
@@ -109,13 +116,6 @@ app.get('/api/v1/audit-log', requireAdminV1, async (req, res) => {
     res.json({ ok: true, logs });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
-
-// Serve React app static assets under /dashboard
-app.use('/dashboard', express.static(DASH_DIST));
-
-// Any /dashboard/* route falls through to React's index.html
-app.get('/dashboard', (_req, res) => res.sendFile(path.join(DASH_DIST, 'index.html')));
-app.get('/dashboard/*', (_req, res) => res.sendFile(path.join(DASH_DIST, 'index.html')));
 
 /* ============================================================
    FALLBACK — serve index.html for all non-API GET routes
