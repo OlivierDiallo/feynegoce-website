@@ -1,5 +1,14 @@
 'use strict';
-require('dotenv').config({ path: require('path').join(__dirname, 'investor-dashboard', '.env') });
+const _path = require('path');
+
+// Load investor-dashboard .env if it exists, otherwise set defaults
+require('dotenv').config({ path: _path.join(__dirname, 'investor-dashboard', '.env') });
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = 'file:' + _path.join(__dirname, 'investor-dashboard', 'prisma', 'dev.db');
+}
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = 'feynegoce-default-jwt-secret-change-me';
+}
 
 const express  = require('express');
 const fs       = require('fs');
