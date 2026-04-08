@@ -3,12 +3,11 @@ const _path = require('path');
 
 // Load investor-dashboard .env if it exists, otherwise set defaults
 require('dotenv').config({ path: _path.join(__dirname, 'investor-dashboard', '.env') });
-if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = 'file:' + _path.join(__dirname, 'investor-dashboard', 'prisma', 'dev.db');
-}
 if (!process.env.JWT_SECRET) {
   process.env.JWT_SECRET = 'feynegoce-default-jwt-secret-change-me';
 }
+// DATABASE_URL must be set via Hostinger env vars or .env file
+// Format: mysql://USER:PASSWORD@HOST:3306/DATABASE_NAME
 
 const express  = require('express');
 const fs       = require('fs');
