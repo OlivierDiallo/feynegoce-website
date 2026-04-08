@@ -10,7 +10,8 @@ import Reports      from './pages/Reports'
 import Projections  from './pages/Projections'
 import Finance      from './pages/Finance'
 import Settings     from './pages/Settings'
-import AuditLog     from './pages/AuditLog'
+import AuditLog        from './pages/AuditLog'
+import UserManagement  from './pages/UserManagement'
 
 function PrivateRoute({ children, adminOnly = false }) {
   const { user, loading } = useAuth()
@@ -42,6 +43,7 @@ function AppRoutes() {
         <Route path="reports"      element={<Reports />} />
         <Route path="projections"  element={<Projections />} />
         <Route path="settings"     element={<Settings />} />
+        <Route path="users"        element={<PrivateRoute adminOnly><UserManagement /></PrivateRoute>} />
         <Route path="audit"        element={<PrivateRoute adminOnly><AuditLog /></PrivateRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

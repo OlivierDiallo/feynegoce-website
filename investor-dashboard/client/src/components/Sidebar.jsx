@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   LayoutDashboard, Package, BarChart3, Calculator,
-  Settings, ClipboardList, LogOut, X, Ship, TrendingUp, DollarSign
+  Settings, ClipboardList, LogOut, X, Ship, TrendingUp, DollarSign, Users
 } from 'lucide-react'
 
 const NAV = [
@@ -15,6 +15,7 @@ const NAV = [
 ]
 
 const ADMIN_NAV = [
+  { to: '/users', label: 'Users', icon: Users },
   { to: '/audit', label: 'Audit Log', icon: ClipboardList },
 ]
 

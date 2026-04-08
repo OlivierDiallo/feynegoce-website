@@ -129,6 +129,33 @@ app.get('*', (_req, res) => {
    ============================================================ */
 db.seedAdmin();
 
+// Auto-create investor dashboard admin from env vars on first run
+async function ensureDashboardAdmin() {
+  try {
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@feynegoce.com';
+    const adminPass  = process.env.ADMIN_PASSWORD || 'admin123';
+    const adminName  = process.env.ADMIN_NAME || 'Admin';
+    const existing   = await prismaV1.user.findUnique({ where: { email: adminEmail } });
+    if (!existing) {
+      const bcrypt = require('bcryptjs');
+      const rounds = parseInt(process.env.BCRYPT_ROUNDS) || 10;
+      await prismaV1.user.create({
+        data: {
+          email: adminEmail,
+          passwordHash: bcrypt.hashSync(adminPass, rounds),
+          name: adminName,
+          role: 'admin',
+          notificationPrefs: JSON.stringify({ new_shipment: true, milestone: true, eta_update: true, new_sale: true, financial_report: true }),
+        },
+      });
+      console.log(`[Dashboard] Admin created: ${adminEmail}`);
+    }
+  } catch (err) {
+    console.warn('[Dashboard] Auto-admin skipped:', err.message);
+  }
+}
+ensureDashboardAdmin();
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n  Feynegoce  →  http://localhost:${PORT}\n`);
 });
