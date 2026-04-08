@@ -1,4 +1,5 @@
 'use strict';
+require('dotenv').config({ path: require('path').join(__dirname, 'investor-dashboard', '.env') });
 
 const express  = require('express');
 const fs       = require('fs');
