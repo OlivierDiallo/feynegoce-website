@@ -3,11 +3,15 @@ const _path = require('path');
 
 // Load investor-dashboard .env if it exists, otherwise set defaults
 require('dotenv').config({ path: _path.join(__dirname, 'investor-dashboard', '.env') });
+if (!process.env.DATABASE_URL) {
+  // SQLite by default — no remote DB credentials needed. The file is created
+  // by `prisma db push` (run automatically by postinstall). Override via env
+  // var if you ever want to point at a managed Postgres / MySQL.
+  process.env.DATABASE_URL = 'file:' + _path.join(__dirname, 'investor-dashboard', 'prisma', 'dev.db');
+}
 if (!process.env.JWT_SECRET) {
   process.env.JWT_SECRET = 'feynegoce-default-jwt-secret-change-me';
 }
-// DATABASE_URL must be set via Hostinger env vars or .env file
-// Format: mysql://USER:PASSWORD@HOST:3306/DATABASE_NAME
 
 const express  = require('express');
 const fs       = require('fs');
@@ -126,22 +130,6 @@ app.get('*', (_req, res) => {
 /* ============================================================
    STARTUP
    ============================================================ */
-// Diagnostic: log what the running process sees for DATABASE_URL.
-// Masks the password but reveals host/user/db so we can verify env injection.
-(function logDbEnv() {
-  const raw = process.env.DATABASE_URL;
-  if (!raw) {
-    console.log('[Diag] DATABASE_URL is NOT set in process.env');
-    return;
-  }
-  try {
-    const u = new URL(raw);
-    console.log(`[Diag] DATABASE_URL → protocol=${u.protocol} user=${u.username} host=${u.hostname} port=${u.port} db=${u.pathname.slice(1)} pwLen=${u.password.length}`);
-  } catch (e) {
-    console.log(`[Diag] DATABASE_URL is set but unparseable: ${e.message} (length=${raw.length})`);
-  }
-})();
-
 db.seedAdmin();
 
 // Bootstrap first admin via email invite flow.

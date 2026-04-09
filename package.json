@@ -6,9 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node index.js",
-    "postinstall": "node investor-dashboard/postinstall.js",
-    "db:setup": "node investor-dashboard/setup-db.js",
-    "db:setup:clean": "node investor-dashboard/setup-db.js --no-seed"
+    "postinstall": "node investor-dashboard/postinstall.js"
   },
   "engines": {
     "node": ">=18"

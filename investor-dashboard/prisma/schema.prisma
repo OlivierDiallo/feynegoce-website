@@ -4,20 +4,20 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id                String    @id @default(uuid()) @db.VarChar(36)
-  email             String    @unique @db.VarChar(255)
-  passwordHash      String?   @map("password_hash") @db.VarChar(255)
-  name              String    @db.VarChar(255)
-  role              String    @db.VarChar(20) // "admin" | "investor"
-  notificationPrefs String    @default("{}") @map("notification_prefs") @db.Text
-  resetTokenHash    String?   @map("reset_token_hash") @db.VarChar(255)
+  id                String    @id @default(uuid())
+  email             String    @unique
+  passwordHash      String?   @map("password_hash")
+  name              String
+  role              String    // "admin" | "investor"
+  notificationPrefs String    @default("{}") @map("notification_prefs")
+  resetTokenHash    String?   @map("reset_token_hash")
   resetTokenExpires DateTime? @map("reset_token_expires")
-  resetTokenPurpose String?   @map("reset_token_purpose") @db.VarChar(20) // "invite" | "reset"
+  resetTokenPurpose String?   @map("reset_token_purpose") // "invite" | "reset"
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
@@ -28,9 +28,9 @@ model User {
 }
 
 model Product {
-  id          String   @id @default(uuid()) @db.VarChar(36)
-  name        String   @unique @db.VarChar(255)
-  description String?  @db.Text
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -40,20 +40,20 @@ model Product {
 }
 
 model Shipment {
-  id              String    @id @default(uuid()) @db.VarChar(36)
-  productId       String    @map("product_id") @db.VarChar(36)
-  reference       String    @unique @db.VarChar(50)
-  origin          String    @db.VarChar(255)
-  destination     String    @db.VarChar(255)
+  id              String    @id @default(uuid())
+  productId       String    @map("product_id")
+  reference       String    @unique
+  origin          String
+  destination     String
   quantity        Int
-  quantityUnit    String    @map("quantity_unit") @db.VarChar(50)
-  costOfGoods     Decimal   @map("cost_of_goods") @db.Decimal(12, 2)
-  currency        String    @default("EUR") @db.VarChar(10)
-  targetMarginPct Decimal   @map("target_margin_pct") @db.Decimal(5, 2)
-  eta             DateTime? @db.Date
-  status          String    @default("pending") @db.VarChar(30)
-  trackingNumber  String?   @map("tracking_number") @db.VarChar(100)
-  notes           String?   @db.Text
+  quantityUnit    String    @map("quantity_unit")
+  costOfGoods     Float     @map("cost_of_goods")
+  currency        String    @default("EUR")
+  targetMarginPct Float     @map("target_margin_pct")
+  eta             DateTime?
+  status          String    @default("pending")
+  trackingNumber  String?   @map("tracking_number")
+  notes           String?
   deletedAt       DateTime? @map("deleted_at")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
@@ -69,11 +69,11 @@ model Shipment {
 }
 
 model ShipmentExpense {
-  id          String   @id @default(uuid()) @db.VarChar(36)
-  shipmentId  String   @map("shipment_id") @db.VarChar(36)
-  category    String   @db.VarChar(100)
-  description String?  @db.Text
-  amount      Decimal  @db.Decimal(12, 2)
+  id          String   @id @default(uuid())
+  shipmentId  String   @map("shipment_id")
+  category    String
+  description String?
+  amount      Float
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -84,10 +84,10 @@ model ShipmentExpense {
 }
 
 model ShipmentInvestorSplit {
-  id         String   @id @default(uuid()) @db.VarChar(36)
-  shipmentId String   @map("shipment_id") @db.VarChar(36)
-  userId     String   @map("user_id") @db.VarChar(36)
-  splitPct   Decimal  @map("split_pct") @db.Decimal(5, 2)
+  id         String   @id @default(uuid())
+  shipmentId String   @map("shipment_id")
+  userId     String   @map("user_id")
+  splitPct   Float    @map("split_pct")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
@@ -100,13 +100,13 @@ model ShipmentInvestorSplit {
 }
 
 model ShipmentSale {
-  id              String   @id @default(uuid()) @db.VarChar(36)
-  shipmentId      String   @map("shipment_id") @db.VarChar(36)
-  customerName    String   @map("customer_name") @db.VarChar(255)
+  id              String   @id @default(uuid())
+  shipmentId      String   @map("shipment_id")
+  customerName    String   @map("customer_name")
   quantitySold    Int      @map("quantity_sold")
-  sellingPrice    Decimal  @map("selling_price") @db.Decimal(12, 2)
-  actualMarginPct Decimal  @map("actual_margin_pct") @db.Decimal(5, 2)
-  marginDelta     Decimal  @map("margin_delta") @db.Decimal(5, 2)
+  sellingPrice    Float    @map("selling_price")
+  actualMarginPct Float    @map("actual_margin_pct")
+  marginDelta     Float    @map("margin_delta")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -117,12 +117,12 @@ model ShipmentSale {
 }
 
 model ShipmentMilestone {
-  id            String   @id @default(uuid()) @db.VarChar(36)
-  shipmentId    String   @map("shipment_id") @db.VarChar(36)
-  milestoneType String   @map("milestone_type") @db.VarChar(30)
+  id            String   @id @default(uuid())
+  shipmentId    String   @map("shipment_id")
+  milestoneType String   @map("milestone_type")
   occurredAt    DateTime @map("occurred_at")
-  notes         String?  @db.Text
-  source        String   @default("manual") @db.VarChar(20)
+  notes         String?
+  source        String   @default("manual")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -133,13 +133,13 @@ model ShipmentMilestone {
 }
 
 model AuditLog {
-  id         String   @id @default(uuid()) @db.VarChar(36)
-  userId     String   @map("user_id") @db.VarChar(36)
-  action     String   @db.VarChar(20)
-  entityType String   @map("entity_type") @db.VarChar(50)
-  entityId   String   @map("entity_id") @db.VarChar(36)
-  oldValues  String?  @map("old_values") @db.Text
-  newValues  String?  @map("new_values") @db.Text
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  oldValues  String?  @map("old_values")
+  newValues  String?  @map("new_values")
   timestamp  DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
