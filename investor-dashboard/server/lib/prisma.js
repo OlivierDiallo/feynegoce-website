@@ -11,10 +11,13 @@ const prisma = globalForPrisma.prisma || new PrismaClient({
 });
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
-// Eagerly connect so any engine startup failure surfaces at boot, not on
-// the first inbound request (which would hang behind the reverse proxy).
-prisma.$connect()
-  .then(() => console.log('[Prisma] $connect ok'))
-  .catch((err) => console.error('[Prisma] $connect failed:', err && err.stack || err));
+// Eagerly connect on the next tick so any engine startup failure surfaces
+// in the runtime log instead of hanging the first inbound request behind
+// the reverse proxy. setImmediate ensures this never blocks the require.
+setImmediate(() => {
+  prisma.$connect()
+    .then(() => console.log('[Prisma] $connect ok'))
+    .catch((err) => console.error('[Prisma] $connect failed:', err && err.stack || err));
+});
 
 module.exports = prisma;

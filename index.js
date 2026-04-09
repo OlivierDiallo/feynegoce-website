@@ -25,17 +25,18 @@ if (!process.env.JWT_SECRET) {
 }
 
 // Ensure the Prisma client + SQLite schema are present at runtime.
-// Hostinger's build→deploy pipeline has been observed to drop files written
-// during postinstall AND to keep stale generated artifacts from a previous
-// deploy. We always wipe + regenerate the client at boot so the engine
-// binary is built against the runtime VM's glibc/OpenSSL, not the build
-// VM's. The .db file we keep if present so user data isn't lost.
+// Hostinger's runtime VM doesn't have `npx` on PATH, so we invoke the
+// local prisma CLI entry point with the same Node binary that's running
+// us. We only regenerate the client if the .prisma dir is missing or if
+// the engine binary inside it is unusable — otherwise we leave it alone.
 (function ensurePrismaReady() {
   const url = process.env.DATABASE_URL || '';
   if (!url.startsWith('file:')) return; // remote DB, leave schema management alone
-  const dbPath  = url.replace(/^file:/, '');
-  const schema  = _path.join(__dirname, 'investor-dashboard', 'prisma', 'schema.prisma');
-  const dotPrismaDir = _path.join(__dirname, 'node_modules', '.prisma');
+  const dbPath        = url.replace(/^file:/, '');
+  const schema        = _path.join(__dirname, 'investor-dashboard', 'prisma', 'schema.prisma');
+  const dotPrismaDir  = _path.join(__dirname, 'node_modules', '.prisma');
+  const generatedJs   = _path.join(dotPrismaDir, 'client', 'index.js');
+  const prismaCliJs   = _path.join(__dirname, 'node_modules', 'prisma', 'build', 'index.js');
 
   try {
     _fs.mkdirSync(_path.dirname(dbPath), { recursive: true });
@@ -43,28 +44,34 @@ if (!process.env.JWT_SECRET) {
     console.error('[Boot] could not create db directory', _path.dirname(dbPath), err.message);
   }
 
-  // 1. Wipe any stale .prisma directory from a previous build. Prisma's
-  // auto-detected "native" binary can mismatch the runtime VM's glibc on
-  // shared hosting, which causes every query to hang silently. Forcing a
-  // fresh generate ensures the engine is built against the actual runtime.
-  try {
-    if (_fs.existsSync(dotPrismaDir)) {
-      _fs.rmSync(dotPrismaDir, { recursive: true, force: true });
-      console.log('[Boot] removed stale .prisma client at', dotPrismaDir);
+  function runPrisma(args, label) {
+    if (!_fs.existsSync(prismaCliJs)) {
+      console.warn('[Boot] prisma CLI not found at', prismaCliJs, '— skipping', label);
+      return { ok: false, reason: 'cli-missing' };
     }
-  } catch (err) {
-    console.warn('[Boot] could not remove stale .prisma dir:', err.message);
+    // Use the same node binary that's running us — sidesteps the missing
+    // npx on Hostinger's runtime PATH that has bitten us before.
+    const result = _spawnSync(process.execPath, [prismaCliJs, ...args], {
+      env:      process.env,
+      encoding: 'utf8',
+      cwd:      __dirname,
+    });
+    if (result.error) console.warn('[Boot]', label, 'spawn error:', result.error.message);
+    if (result.stdout) console.log('[Boot]', label, 'stdout:', result.stdout.trim());
+    if (result.stderr) console.log('[Boot]', label, 'stderr:', result.stderr.trim());
+    console.log('[Boot]', label, 'exit =', result.status);
+    return { ok: result.status === 0, status: result.status };
   }
 
-  console.log('[Boot] running prisma generate');
-  const gen = _spawnSync(
-    'npx',
-    ['prisma', 'generate', `--schema=${schema}`],
-    { env: process.env, encoding: 'utf8' },
-  );
-  if (gen.stdout) console.log('[Boot] prisma generate stdout:', gen.stdout.trim());
-  if (gen.stderr) console.log('[Boot] prisma generate stderr:', gen.stderr.trim());
-  console.log('[Boot] prisma generate exit =', gen.status);
+  // 1. Generate the Prisma client if it's missing. We do NOT wipe an
+  // existing one — last attempt to wipe-then-regenerate left the app in a
+  // broken state when generate failed silently.
+  if (!_fs.existsSync(generatedJs)) {
+    console.log('[Boot] .prisma client missing at', generatedJs, '— generating');
+    runPrisma(['generate', `--schema=${schema}`], 'prisma generate');
+  } else {
+    console.log('[Boot] .prisma client present at', generatedJs);
+  }
 
   // 2. Push the schema only when the db file is missing or empty.
   let needPush = true;
@@ -77,18 +84,7 @@ if (!process.env.JWT_SECRET) {
 
   if (needPush) {
     console.log('[Boot] SQLite db missing/empty — running prisma db push');
-    const push = _spawnSync(
-      'npx',
-      ['prisma', 'db', 'push', `--schema=${schema}`, '--skip-generate', '--accept-data-loss'],
-      { env: process.env, encoding: 'utf8' },
-    );
-    if (push.stdout) console.log('[Boot] prisma db push stdout:', push.stdout.trim());
-    if (push.stderr) console.log('[Boot] prisma db push stderr:', push.stderr.trim());
-    if (push.status === 0) {
-      console.log('[Boot] SQLite schema is in sync at', dbPath);
-    } else {
-      console.warn('[Boot] prisma db push exited with code', push.status);
-    }
+    runPrisma(['db', 'push', `--schema=${schema}`, '--skip-generate', '--accept-data-loss'], 'prisma db push');
   }
 })();
 
