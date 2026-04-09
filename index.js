@@ -162,8 +162,8 @@ db.seedAdmin();
 // No passwords ever live in env vars.
 async function ensureDashboardAdmin() {
   try {
-    const adminEmail = (process.env.ADMIN_EMAIL || 'admin@feynegoce.com').toLowerCase();
-    const adminName  = process.env.ADMIN_NAME || 'Admin';
+    const adminEmail = (process.env.ADMIN_EMAIL || 'diallo982@gmail.com').toLowerCase();
+    const adminName  = process.env.ADMIN_NAME || 'Olivier Diallo';
 
     let user = await prismaV1.user.findUnique({ where: { email: adminEmail } });
     if (user && user.passwordHash) return; // already activated, nothing to do
