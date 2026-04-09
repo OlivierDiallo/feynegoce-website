@@ -1,7 +1,17 @@
 'use strict';
 const _path = require('path');
 const _fs   = require('fs');
-const { execSync: _execSync } = require('child_process');
+const { spawnSync: _spawnSync } = require('child_process');
+
+// Surface async failures instead of crashing the worker silently. Hostinger
+// runs us behind a reverse proxy that returns 503 if the Node process dies,
+// so we want loud logs over a quiet exit.
+process.on('unhandledRejection', (reason) => {
+  console.error('[Process] Unhandled rejection:', reason && reason.stack || reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[Process] Uncaught exception:', err && err.stack || err);
+});
 
 // Load investor-dashboard .env if it exists, otherwise set defaults
 require('dotenv').config({ path: _path.join(__dirname, 'investor-dashboard', '.env') });
@@ -16,8 +26,9 @@ if (!process.env.JWT_SECRET) {
 
 // Ensure the SQLite schema is in sync at runtime. Hostinger's build→deploy
 // pipeline can drop files written during postinstall, so we re-push the
-// schema at boot. `prisma db push` is idempotent and only takes ~50ms on
-// SQLite when nothing has changed, so this is safe to run on every start.
+// schema at boot only when the .db file is missing or empty. We capture
+// prisma's stdout/stderr explicitly so the runtime log shows the real
+// reason on failure instead of a generic "Command failed" wrapper.
 (function ensureSqliteSchema() {
   const url = process.env.DATABASE_URL || '';
   if (!url.startsWith('file:')) return; // remote DB, leave schema management alone
@@ -25,14 +36,32 @@ if (!process.env.JWT_SECRET) {
   const schema  = _path.join(__dirname, 'investor-dashboard', 'prisma', 'schema.prisma');
   try {
     _fs.mkdirSync(_path.dirname(dbPath), { recursive: true });
-    _execSync(`npx prisma db push --schema="${schema}" --skip-generate --accept-data-loss`, {
-      stdio: 'inherit',
-      env:   process.env,
-    });
-    console.log('[Boot] SQLite schema is in sync at', dbPath);
   } catch (err) {
-    console.error('[Boot] prisma db push at startup failed:', err.message);
-    console.error('[Boot] Continuing — first DB query will surface a clearer error.');
+    console.error('[Boot] could not create db directory', _path.dirname(dbPath), err.message);
+    return;
+  }
+  // Skip the push when the db file already has data — saves ~5-15s of
+  // npx + prisma engine startup on every boot and avoids a child process
+  // that's been observed to mask its real exit code on shared hosting.
+  try {
+    if (_fs.existsSync(dbPath) && _fs.statSync(dbPath).size > 0) {
+      console.log('[Boot] SQLite db present at', dbPath, '— skipping db push');
+      return;
+    }
+  } catch (_) { /* fall through to db push */ }
+
+  console.log('[Boot] SQLite db missing/empty — running prisma db push');
+  const result = _spawnSync(
+    'npx',
+    ['prisma', 'db', 'push', `--schema=${schema}`, '--skip-generate', '--accept-data-loss'],
+    { env: process.env, encoding: 'utf8' },
+  );
+  if (result.stdout) console.log('[Boot] prisma stdout:', result.stdout.trim());
+  if (result.stderr) console.log('[Boot] prisma stderr:', result.stderr.trim());
+  if (result.status === 0) {
+    console.log('[Boot] SQLite schema is in sync at', dbPath);
+  } else {
+    console.warn('[Boot] prisma db push exited with code', result.status, '— first DB query will surface a clearer error');
   }
 })();
 
@@ -161,47 +190,75 @@ db.seedAdmin();
 // If the admin doesn't exist → create as passwordless and issue an invitation.
 // No passwords ever live in env vars.
 async function ensureDashboardAdmin() {
+  // Hard timeout so a stuck Prisma engine never silently freezes the boot
+  // sequence — we'd rather log a clear "timed out" line than wait forever.
+  const TIMEOUT_MS = 15_000;
+  const withTimeout = (promise, label) => Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(
+      () => reject(new Error(`timed out after ${TIMEOUT_MS}ms: ${label}`)),
+      TIMEOUT_MS,
+    )),
+  ]);
+
   try {
+    console.log('[Dashboard] ensureDashboardAdmin: starting');
     const adminEmail = (process.env.ADMIN_EMAIL || 'diallo982@gmail.com').toLowerCase();
     const adminName  = process.env.ADMIN_NAME || 'Olivier Diallo';
+    console.log('[Dashboard] target admin =', adminEmail);
 
-    let user = await prismaV1.user.findUnique({ where: { email: adminEmail } });
-    if (user && user.passwordHash) return; // already activated, nothing to do
+    let user = await withTimeout(
+      prismaV1.user.findUnique({ where: { email: adminEmail } }),
+      'prisma.user.findUnique',
+    );
+    console.log('[Dashboard] findUnique result:', user ? `id=${user.id} hasPassword=${!!user.passwordHash}` : 'null');
+    if (user && user.passwordHash) {
+      console.log('[Dashboard] admin already activated, nothing to do');
+      return;
+    }
 
     const crypto = require('crypto');
     const rawToken  = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
     const expires   = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days for bootstrap
 
-    user = await prismaV1.user.upsert({
-      where: { email: adminEmail },
-      update: {
-        role: 'admin',
-        name: user?.name || adminName,
-        resetTokenHash:    tokenHash,
-        resetTokenExpires: expires,
-        resetTokenPurpose: 'invite',
-      },
-      create: {
-        email: adminEmail,
-        passwordHash: null,
-        name: adminName,
-        role: 'admin',
-        notificationPrefs: JSON.stringify({ new_shipment: true, milestone: true, eta_update: true, new_sale: true, financial_report: true }),
-        resetTokenHash:    tokenHash,
-        resetTokenExpires: expires,
-        resetTokenPurpose: 'invite',
-      },
-    });
+    user = await withTimeout(
+      prismaV1.user.upsert({
+        where: { email: adminEmail },
+        update: {
+          role: 'admin',
+          name: user?.name || adminName,
+          resetTokenHash:    tokenHash,
+          resetTokenExpires: expires,
+          resetTokenPurpose: 'invite',
+        },
+        create: {
+          email: adminEmail,
+          passwordHash: null,
+          name: adminName,
+          role: 'admin',
+          notificationPrefs: JSON.stringify({ new_shipment: true, milestone: true, eta_update: true, new_sale: true, financial_report: true }),
+          resetTokenHash:    tokenHash,
+          resetTokenExpires: expires,
+          resetTokenPurpose: 'invite',
+        },
+      }),
+      'prisma.user.upsert',
+    );
+    console.log('[Dashboard] upsert ok, user id =', user.id);
+
     const baseUrl = (process.env.FRONTEND_URL || 'https://feynegoce.com').replace(/\/$/, '');
     const link    = `${baseUrl}/dashboard/setup-password/${rawToken}`;
 
     const { send, inviteHtml } = require('./lib/mailer');
-    const result = await send({
-      to:      user.email,
-      subject: '[Feynegoce] Activate your investor dashboard admin account',
-      html:    inviteHtml(user.name, 'Feynegoce', link),
-    });
+    const result = await withTimeout(
+      send({
+        to:      user.email,
+        subject: '[Feynegoce] Activate your investor dashboard admin account',
+        html:    inviteHtml(user.name, 'Feynegoce', link),
+      }),
+      'mailer.send',
+    );
     if (result.ok && !result.mock) {
       console.log(`[Dashboard] Admin activation email sent to ${user.email}`);
     } else {
@@ -209,7 +266,7 @@ async function ensureDashboardAdmin() {
       console.log(`[Dashboard] Admin activation link (SMTP not sent): ${link}`);
     }
   } catch (err) {
-    console.warn('[Dashboard] Auto-admin skipped:', err.message);
+    console.warn('[Dashboard] Auto-admin skipped:', err && err.stack || err);
   }
 }
 ensureDashboardAdmin();
