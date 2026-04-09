@@ -1,17 +1,40 @@
 'use strict';
 const _path = require('path');
+const _fs   = require('fs');
+const { execSync: _execSync } = require('child_process');
 
 // Load investor-dashboard .env if it exists, otherwise set defaults
 require('dotenv').config({ path: _path.join(__dirname, 'investor-dashboard', '.env') });
 if (!process.env.DATABASE_URL) {
-  // SQLite by default — no remote DB credentials needed. The file is created
-  // by `prisma db push` (run automatically by postinstall). Override via env
+  // SQLite by default — no remote DB credentials needed. Override via env
   // var if you ever want to point at a managed Postgres / MySQL.
   process.env.DATABASE_URL = 'file:' + _path.join(__dirname, 'investor-dashboard', 'prisma', 'dev.db');
 }
 if (!process.env.JWT_SECRET) {
   process.env.JWT_SECRET = 'feynegoce-default-jwt-secret-change-me';
 }
+
+// Ensure the SQLite schema is in sync at runtime. Hostinger's build→deploy
+// pipeline can drop files written during postinstall, so we re-push the
+// schema at boot. `prisma db push` is idempotent and only takes ~50ms on
+// SQLite when nothing has changed, so this is safe to run on every start.
+(function ensureSqliteSchema() {
+  const url = process.env.DATABASE_URL || '';
+  if (!url.startsWith('file:')) return; // remote DB, leave schema management alone
+  const dbPath  = url.replace(/^file:/, '');
+  const schema  = _path.join(__dirname, 'investor-dashboard', 'prisma', 'schema.prisma');
+  try {
+    _fs.mkdirSync(_path.dirname(dbPath), { recursive: true });
+    _execSync(`npx prisma db push --schema="${schema}" --skip-generate --accept-data-loss`, {
+      stdio: 'inherit',
+      env:   process.env,
+    });
+    console.log('[Boot] SQLite schema is in sync at', dbPath);
+  } catch (err) {
+    console.error('[Boot] prisma db push at startup failed:', err.message);
+    console.error('[Boot] Continuing — first DB query will surface a clearer error.');
+  }
+})();
 
 const express  = require('express');
 const fs       = require('fs');
