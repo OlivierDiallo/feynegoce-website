@@ -1,7 +1,9 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Layout from './components/Layout'
-import Login        from './pages/Login'
+import Login           from './pages/Login'
+import ForgotPassword   from './pages/ForgotPassword'
+import SetPassword      from './pages/SetPassword'
 import Overview     from './pages/Overview'
 import ShipmentsList  from './pages/ShipmentsList'
 import ShipmentDetail from './pages/ShipmentDetail'
@@ -33,7 +35,10 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/login"           element={user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password/:token" element={<SetPassword defaultPurpose="reset" />} />
+      <Route path="/setup-password/:token" element={<SetPassword defaultPurpose="invite" />} />
       <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route index element={<Overview />} />
         <Route path="shipments"    element={<ShipmentsList />} />

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { UserPlus, KeyRound, Trash2, Shield, User, X } from 'lucide-react'
+import { UserPlus, Mail, KeyRound, Trash2, X, RefreshCw, Clock } from 'lucide-react'
 import api from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 
@@ -22,34 +22,47 @@ function Modal({ open, onClose, title, children }) {
 export default function UserManagement() {
   const { user: me } = useAuth()
   const qc = useQueryClient()
-  const [showCreate, setShowCreate] = useState(false)
-  const [resetTarget, setResetTarget] = useState(null)
+  const [showCreate, setShowCreate]   = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [actionInfo, setActionInfo]   = useState(null) // { kind, name, mail }
 
   const { data, isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: () => api.get('/users').then(r => r.data),
   })
-
   const users = data?.users || []
 
-  // Create user
-  const [form, setForm] = useState({ email: '', name: '', password: '', role: 'investor' })
+  // Invite new user
+  const [form, setForm] = useState({ email: '', name: '', role: 'investor' })
   const [createErr, setCreateErr] = useState('')
   const createMut = useMutation({
-    mutationFn: (data) => api.post('/users', data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); setShowCreate(false); setForm({ email: '', name: '', password: '', role: 'investor' }); setCreateErr('') },
-    onError: (err) => setCreateErr(err.response?.data?.error || 'Failed to create user'),
+    mutationFn: (data) => api.post('/users', data).then(r => r.data),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      setShowCreate(false)
+      setForm({ email: '', name: '', role: 'investor' })
+      setCreateErr('')
+      setActionInfo({ kind: 'invite', name: res.user.name, mail: res.mail })
+    },
+    onError: (err) => setCreateErr(err.response?.data?.error || 'Failed to invite user'),
   })
 
-  // Reset password
-  const [newPass, setNewPass] = useState('')
-  const [resetErr, setResetErr] = useState('')
-  const [resetOk, setResetOk] = useState(false)
-  const resetMut = useMutation({
-    mutationFn: ({ id, newPassword }) => api.put(`/users/${id}/reset-password`, { newPassword }),
-    onSuccess: () => { setResetOk(true); setResetErr('') },
-    onError: (err) => setResetErr(err.response?.data?.error || 'Failed to reset password'),
+  // Resend invite
+  const resendMut = useMutation({
+    mutationFn: (id) => api.post(`/users/${id}/resend-invite`).then(r => r.data),
+    onSuccess: (res, id) => {
+      const u = users.find(x => x.id === id)
+      setActionInfo({ kind: 'invite', name: u?.name, mail: res.mail })
+    },
+  })
+
+  // Send password reset email
+  const sendResetMut = useMutation({
+    mutationFn: (id) => api.post(`/users/${id}/send-reset`).then(r => r.data),
+    onSuccess: (res, id) => {
+      const u = users.find(x => x.id === id)
+      setActionInfo({ kind: 'reset', name: u?.name, mail: res.mail })
+    },
   })
 
   // Delete user
@@ -76,7 +89,7 @@ export default function UserManagement() {
           <p className="text-slate-500 text-sm mt-1">{users.length} registered users</p>
         </div>
         <button onClick={() => setShowCreate(true)} className="btn-primary">
-          <UserPlus size={16} /> New User
+          <UserPlus size={16} /> Invite User
         </button>
       </div>
 
@@ -87,6 +100,7 @@ export default function UserManagement() {
               <th className="text-left p-4 font-medium">Name</th>
               <th className="text-left p-4 font-medium">Email</th>
               <th className="text-left p-4 font-medium">Role</th>
+              <th className="text-left p-4 font-medium">Status</th>
               <th className="text-left p-4 font-medium">Created</th>
               <th className="text-right p-4 font-medium">Actions</th>
             </tr>
@@ -110,16 +124,37 @@ export default function UserManagement() {
                     <option value="investor">Investor</option>
                   </select>
                 </td>
+                <td className="p-4">
+                  {u.pending ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                      <Clock size={11} /> Pending
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Active</span>
+                  )}
+                </td>
                 <td className="p-4 text-slate-400 text-xs">{new Date(u.createdAt).toLocaleDateString()}</td>
                 <td className="p-4 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <button
-                      onClick={() => { setResetTarget(u); setNewPass(''); setResetOk(false); setResetErr('') }}
-                      className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-accent"
-                      title="Reset password"
-                    >
-                      <KeyRound size={15} />
-                    </button>
+                    {u.pending ? (
+                      <button
+                        onClick={() => resendMut.mutate(u.id)}
+                        disabled={resendMut.isPending}
+                        className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-accent"
+                        title="Resend invite email"
+                      >
+                        <RefreshCw size={15} />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => sendResetMut.mutate(u.id)}
+                        disabled={sendResetMut.isPending}
+                        className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-accent"
+                        title="Send password reset email"
+                      >
+                        <KeyRound size={15} />
+                      </button>
+                    )}
                     {u.id !== me?.id && (
                       <button
                         onClick={() => { setDeleteTarget(u); setDeleteErr('') }}
@@ -137,8 +172,11 @@ export default function UserManagement() {
         </table>
       </div>
 
-      {/* Create User Modal */}
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Create New User">
+      {/* Invite User Modal */}
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Invite New User">
+        <p className="text-xs text-slate-500 mb-4">
+          The user will receive a secure email with a one-time link to set their own password. The link expires in 24 hours.
+        </p>
         <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">Full Name</label>
@@ -151,11 +189,6 @@ export default function UserManagement() {
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Password (min 8 chars)</label>
-            <input type="password" required minLength={8} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none" />
-          </div>
-          <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">Role</label>
             <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none">
@@ -165,32 +198,25 @@ export default function UserManagement() {
           </div>
           {createErr && <p className="text-red-500 text-xs">{createErr}</p>}
           <button type="submit" disabled={createMut.isPending} className="btn-primary w-full justify-center">
-            {createMut.isPending ? 'Creating...' : 'Create User'}
+            <Mail size={15} />
+            {createMut.isPending ? 'Sending invite...' : 'Send Invitation Email'}
           </button>
         </form>
       </Modal>
 
-      {/* Reset Password Modal */}
-      <Modal open={!!resetTarget} onClose={() => setResetTarget(null)} title={`Reset password — ${resetTarget?.name}`}>
-        {resetOk ? (
-          <div className="text-center py-4">
-            <div className="text-green-600 font-medium mb-2">Password reset successfully.</div>
-            <p className="text-slate-500 text-sm">Share the new password with {resetTarget?.name} securely.</p>
-            <button onClick={() => setResetTarget(null)} className="btn-primary mt-4">Done</button>
-          </div>
+      {/* Action Result Modal */}
+      <Modal open={!!actionInfo} onClose={() => setActionInfo(null)} title={actionInfo?.kind === 'invite' ? 'Invitation sent' : 'Password reset sent'}>
+        {actionInfo?.mail === 'sent' ? (
+          <p className="text-slate-600 text-sm mb-4">
+            An email has been sent to <span className="font-semibold text-navy">{actionInfo?.name}</span> with a secure link to {actionInfo?.kind === 'invite' ? 'set up their account' : 'reset their password'}.
+            The link expires in {actionInfo?.kind === 'invite' ? '24 hours' : '1 hour'}.
+          </p>
         ) : (
-          <form onSubmit={e => { e.preventDefault(); resetMut.mutate({ id: resetTarget?.id, newPassword: newPass }) }} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">New Password (min 8 chars)</label>
-              <input type="password" required minLength={8} value={newPass} onChange={e => setNewPass(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none" />
-            </div>
-            {resetErr && <p className="text-red-500 text-xs">{resetErr}</p>}
-            <button type="submit" disabled={resetMut.isPending} className="btn-primary w-full justify-center">
-              {resetMut.isPending ? 'Resetting...' : 'Reset Password'}
-            </button>
-          </form>
+          <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+            Email could not be delivered. Check that SMTP credentials are configured on the server.
+          </div>
         )}
+        <button onClick={() => setActionInfo(null)} className="btn-primary w-full justify-center">Done</button>
       </Modal>
 
       {/* Delete Confirmation Modal */}

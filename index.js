@@ -128,26 +128,58 @@ app.get('*', (_req, res) => {
    ============================================================ */
 db.seedAdmin();
 
-// Auto-create investor dashboard admin from env vars on first run
+// Bootstrap first admin via email invite flow.
+// If the admin exists already and has a password → do nothing.
+// If the admin exists but has no password (e.g. just seeded) → issue a fresh invitation.
+// If the admin doesn't exist → create as passwordless and issue an invitation.
+// No passwords ever live in env vars.
 async function ensureDashboardAdmin() {
   try {
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@feynegoce.com';
-    const adminPass  = process.env.ADMIN_PASSWORD || 'admin123';
+    const adminEmail = (process.env.ADMIN_EMAIL || 'admin@feynegoce.com').toLowerCase();
     const adminName  = process.env.ADMIN_NAME || 'Admin';
-    const existing   = await prismaV1.user.findUnique({ where: { email: adminEmail } });
-    if (!existing) {
-      const bcrypt = require('bcryptjs');
-      const rounds = parseInt(process.env.BCRYPT_ROUNDS) || 10;
-      await prismaV1.user.create({
-        data: {
-          email: adminEmail,
-          passwordHash: bcrypt.hashSync(adminPass, rounds),
-          name: adminName,
-          role: 'admin',
-          notificationPrefs: JSON.stringify({ new_shipment: true, milestone: true, eta_update: true, new_sale: true, financial_report: true }),
-        },
-      });
-      console.log(`[Dashboard] Admin created: ${adminEmail}`);
+
+    let user = await prismaV1.user.findUnique({ where: { email: adminEmail } });
+    if (user && user.passwordHash) return; // already activated, nothing to do
+
+    const crypto = require('crypto');
+    const rawToken  = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expires   = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days for bootstrap
+
+    user = await prismaV1.user.upsert({
+      where: { email: adminEmail },
+      update: {
+        role: 'admin',
+        name: user?.name || adminName,
+        resetTokenHash:    tokenHash,
+        resetTokenExpires: expires,
+        resetTokenPurpose: 'invite',
+      },
+      create: {
+        email: adminEmail,
+        passwordHash: null,
+        name: adminName,
+        role: 'admin',
+        notificationPrefs: JSON.stringify({ new_shipment: true, milestone: true, eta_update: true, new_sale: true, financial_report: true }),
+        resetTokenHash:    tokenHash,
+        resetTokenExpires: expires,
+        resetTokenPurpose: 'invite',
+      },
+    });
+    const baseUrl = (process.env.FRONTEND_URL || 'https://feynegoce.com').replace(/\/$/, '');
+    const link    = `${baseUrl}/dashboard/setup-password/${rawToken}`;
+
+    const { send, inviteHtml } = require('./lib/mailer');
+    const result = await send({
+      to:      user.email,
+      subject: '[Feynegoce] Activate your investor dashboard admin account',
+      html:    inviteHtml(user.name, 'Feynegoce', link),
+    });
+    if (result.ok && !result.mock) {
+      console.log(`[Dashboard] Admin activation email sent to ${user.email}`);
+    } else {
+      // If SMTP isn't configured yet, log the link so the operator can use it once.
+      console.log(`[Dashboard] Admin activation link (SMTP not sent): ${link}`);
     }
   } catch (err) {
     console.warn('[Dashboard] Auto-admin skipped:', err.message);

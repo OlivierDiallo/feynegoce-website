@@ -1,30 +1,29 @@
 'use strict';
 require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
-
-const ROUNDS = parseInt(process.env.BCRYPT_ROUNDS) || 12;
 
 async function main() {
   console.log('🌱 Seeding database...');
 
-  // USERS
+  // USERS — all created in pending state (no password). Admin sends invites later.
+  const adminEmail = (process.env.ADMIN_EMAIL || 'admin@feynegoce.com').toLowerCase();
+  const adminName  = process.env.ADMIN_NAME || 'Olivier Diallo';
   const [admin, investor1, investor2] = await Promise.all([
-    prisma.user.upsert({ where: { email: 'admin@feynegoce.com' }, update: {},
-      create: { email: 'admin@feynegoce.com', passwordHash: bcrypt.hashSync('admin123', ROUNDS),
-        name: 'Olivier Diallo', role: 'admin',
+    prisma.user.upsert({ where: { email: adminEmail }, update: {},
+      create: { email: adminEmail, passwordHash: null,
+        name: adminName, role: 'admin',
         notificationPrefs: JSON.stringify({ new_shipment: true, milestone: true, eta_update: true, new_sale: true, financial_report: true }) } }),
     prisma.user.upsert({ where: { email: 'investor1@feynegoce.com' }, update: {},
-      create: { email: 'investor1@feynegoce.com', passwordHash: bcrypt.hashSync('invest123', ROUNDS),
+      create: { email: 'investor1@feynegoce.com', passwordHash: null,
         name: 'Jean-Baptiste Koné', role: 'investor',
         notificationPrefs: JSON.stringify({ new_shipment: true, milestone: true, eta_update: false, new_sale: true, financial_report: true }) } }),
     prisma.user.upsert({ where: { email: 'investor2@feynegoce.com' }, update: {},
-      create: { email: 'investor2@feynegoce.com', passwordHash: bcrypt.hashSync('invest123', ROUNDS),
+      create: { email: 'investor2@feynegoce.com', passwordHash: null,
         name: 'Marie Dubois', role: 'investor',
         notificationPrefs: JSON.stringify({ new_shipment: false, milestone: true, eta_update: false, new_sale: true, financial_report: true }) } }),
   ]);
-  console.log('✓ Users created');
+  console.log('✓ Users created (pending — admin will be auto-invited on server start)');
 
   // PRODUCTS
   const [tires, textiles, electronics] = await Promise.all([
@@ -190,10 +189,8 @@ async function main() {
 
   console.log('✓ Shipments created (5 total)');
   console.log('\n✅ Seed complete!\n');
-  console.log('Test accounts:');
-  console.log('  Admin:     admin@feynegoce.com    / admin123');
-  console.log('  Investor1: investor1@feynegoce.com / invest123');
-  console.log('  Investor2: investor2@feynegoce.com / invest123\n');
+  console.log('Demo users are pending — they have no passwords yet.');
+  console.log('The admin will receive an activation email when the server starts.\n');
 }
 
 main()

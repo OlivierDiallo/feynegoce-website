@@ -2,3 +2,7 @@
 Thumbs.db
 node_modules/
 data/
+investor-dashboard/prisma/dev.db
+investor-dashboard/prisma/dev.db-journal
+.env
+investor-dashboard/.env
