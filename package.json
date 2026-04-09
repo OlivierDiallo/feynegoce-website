@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node index.js",
-    "postinstall": "npx prisma generate --schema=investor-dashboard/prisma/schema.prisma",
+    "postinstall": "node investor-dashboard/postinstall.js",
     "db:setup": "node investor-dashboard/setup-db.js",
     "db:setup:clean": "node investor-dashboard/setup-db.js --no-seed"
   },
