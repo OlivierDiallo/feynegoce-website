@@ -24,44 +24,64 @@ if (!process.env.JWT_SECRET) {
   process.env.JWT_SECRET = 'feynegoce-default-jwt-secret-change-me';
 }
 
-// Ensure the SQLite schema is in sync at runtime. Hostinger's build→deploy
-// pipeline can drop files written during postinstall, so we re-push the
-// schema at boot only when the .db file is missing or empty. We capture
-// prisma's stdout/stderr explicitly so the runtime log shows the real
-// reason on failure instead of a generic "Command failed" wrapper.
-(function ensureSqliteSchema() {
+// Ensure the Prisma client + SQLite schema are present at runtime.
+// Hostinger's build→deploy pipeline has been observed to drop files written
+// during postinstall (both the .db file and the generated client/engine),
+// so we re-emit them at boot. Both prisma commands are idempotent.
+(function ensurePrismaReady() {
   const url = process.env.DATABASE_URL || '';
   if (!url.startsWith('file:')) return; // remote DB, leave schema management alone
-  const dbPath  = url.replace(/^file:/, '');
-  const schema  = _path.join(__dirname, 'investor-dashboard', 'prisma', 'schema.prisma');
+  const dbPath = url.replace(/^file:/, '');
+  const schema = _path.join(__dirname, 'investor-dashboard', 'prisma', 'schema.prisma');
+  const generatedClient = _path.join(__dirname, 'node_modules', '.prisma', 'client', 'index.js');
+
   try {
     _fs.mkdirSync(_path.dirname(dbPath), { recursive: true });
   } catch (err) {
     console.error('[Boot] could not create db directory', _path.dirname(dbPath), err.message);
-    return;
   }
-  // Skip the push when the db file already has data — saves ~5-15s of
-  // npx + prisma engine startup on every boot and avoids a child process
-  // that's been observed to mask its real exit code on shared hosting.
+
+  // 1. Generate the Prisma client + engine binary if missing. Prisma's
+  // auto-detected "native" binary can mismatch the runtime VM's glibc on
+  // shared hosting, which causes every query to hang silently. Forcing a
+  // generate at boot ensures the engine is built against the actual runtime.
+  if (!_fs.existsSync(generatedClient)) {
+    console.log('[Boot] Prisma client missing — running prisma generate');
+    const gen = _spawnSync(
+      'npx',
+      ['prisma', 'generate', `--schema=${schema}`],
+      { env: process.env, encoding: 'utf8' },
+    );
+    if (gen.stdout) console.log('[Boot] prisma generate stdout:', gen.stdout.trim());
+    if (gen.stderr) console.log('[Boot] prisma generate stderr:', gen.stderr.trim());
+    console.log('[Boot] prisma generate exit =', gen.status);
+  } else {
+    console.log('[Boot] Prisma client found at', generatedClient);
+  }
+
+  // 2. Push the schema only when the db file is missing or empty.
+  let needPush = true;
   try {
     if (_fs.existsSync(dbPath) && _fs.statSync(dbPath).size > 0) {
       console.log('[Boot] SQLite db present at', dbPath, '— skipping db push');
-      return;
+      needPush = false;
     }
   } catch (_) { /* fall through to db push */ }
 
-  console.log('[Boot] SQLite db missing/empty — running prisma db push');
-  const result = _spawnSync(
-    'npx',
-    ['prisma', 'db', 'push', `--schema=${schema}`, '--skip-generate', '--accept-data-loss'],
-    { env: process.env, encoding: 'utf8' },
-  );
-  if (result.stdout) console.log('[Boot] prisma stdout:', result.stdout.trim());
-  if (result.stderr) console.log('[Boot] prisma stderr:', result.stderr.trim());
-  if (result.status === 0) {
-    console.log('[Boot] SQLite schema is in sync at', dbPath);
-  } else {
-    console.warn('[Boot] prisma db push exited with code', result.status, '— first DB query will surface a clearer error');
+  if (needPush) {
+    console.log('[Boot] SQLite db missing/empty — running prisma db push');
+    const push = _spawnSync(
+      'npx',
+      ['prisma', 'db', 'push', `--schema=${schema}`, '--skip-generate', '--accept-data-loss'],
+      { env: process.env, encoding: 'utf8' },
+    );
+    if (push.stdout) console.log('[Boot] prisma db push stdout:', push.stdout.trim());
+    if (push.stderr) console.log('[Boot] prisma db push stderr:', push.stderr.trim());
+    if (push.status === 0) {
+      console.log('[Boot] SQLite schema is in sync at', dbPath);
+    } else {
+      console.warn('[Boot] prisma db push exited with code', push.status);
+    }
   }
 })();
 
@@ -203,7 +223,10 @@ async function ensureDashboardAdmin() {
 
   try {
     console.log('[Dashboard] ensureDashboardAdmin: starting');
-    const adminEmail = (process.env.ADMIN_EMAIL || 'diallo982@gmail.com').toLowerCase();
+    // Hardcoded for now — Hostinger has a stale ADMIN_EMAIL env var that
+    // we want to ignore until the user updates it from the panel. Once
+    // updated, swap this back to (process.env.ADMIN_EMAIL || 'diallo982@gmail.com').
+    const adminEmail = 'diallo982@gmail.com';
     const adminName  = process.env.ADMIN_NAME || 'Olivier Diallo';
     console.log('[Dashboard] target admin =', adminEmail);
 
