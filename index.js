@@ -26,14 +26,16 @@ if (!process.env.JWT_SECRET) {
 
 // Ensure the Prisma client + SQLite schema are present at runtime.
 // Hostinger's build→deploy pipeline has been observed to drop files written
-// during postinstall (both the .db file and the generated client/engine),
-// so we re-emit them at boot. Both prisma commands are idempotent.
+// during postinstall AND to keep stale generated artifacts from a previous
+// deploy. We always wipe + regenerate the client at boot so the engine
+// binary is built against the runtime VM's glibc/OpenSSL, not the build
+// VM's. The .db file we keep if present so user data isn't lost.
 (function ensurePrismaReady() {
   const url = process.env.DATABASE_URL || '';
   if (!url.startsWith('file:')) return; // remote DB, leave schema management alone
-  const dbPath = url.replace(/^file:/, '');
-  const schema = _path.join(__dirname, 'investor-dashboard', 'prisma', 'schema.prisma');
-  const generatedClient = _path.join(__dirname, 'node_modules', '.prisma', 'client', 'index.js');
+  const dbPath  = url.replace(/^file:/, '');
+  const schema  = _path.join(__dirname, 'investor-dashboard', 'prisma', 'schema.prisma');
+  const dotPrismaDir = _path.join(__dirname, 'node_modules', '.prisma');
 
   try {
     _fs.mkdirSync(_path.dirname(dbPath), { recursive: true });
@@ -41,23 +43,28 @@ if (!process.env.JWT_SECRET) {
     console.error('[Boot] could not create db directory', _path.dirname(dbPath), err.message);
   }
 
-  // 1. Generate the Prisma client + engine binary if missing. Prisma's
+  // 1. Wipe any stale .prisma directory from a previous build. Prisma's
   // auto-detected "native" binary can mismatch the runtime VM's glibc on
   // shared hosting, which causes every query to hang silently. Forcing a
-  // generate at boot ensures the engine is built against the actual runtime.
-  if (!_fs.existsSync(generatedClient)) {
-    console.log('[Boot] Prisma client missing — running prisma generate');
-    const gen = _spawnSync(
-      'npx',
-      ['prisma', 'generate', `--schema=${schema}`],
-      { env: process.env, encoding: 'utf8' },
-    );
-    if (gen.stdout) console.log('[Boot] prisma generate stdout:', gen.stdout.trim());
-    if (gen.stderr) console.log('[Boot] prisma generate stderr:', gen.stderr.trim());
-    console.log('[Boot] prisma generate exit =', gen.status);
-  } else {
-    console.log('[Boot] Prisma client found at', generatedClient);
+  // fresh generate ensures the engine is built against the actual runtime.
+  try {
+    if (_fs.existsSync(dotPrismaDir)) {
+      _fs.rmSync(dotPrismaDir, { recursive: true, force: true });
+      console.log('[Boot] removed stale .prisma client at', dotPrismaDir);
+    }
+  } catch (err) {
+    console.warn('[Boot] could not remove stale .prisma dir:', err.message);
   }
+
+  console.log('[Boot] running prisma generate');
+  const gen = _spawnSync(
+    'npx',
+    ['prisma', 'generate', `--schema=${schema}`],
+    { env: process.env, encoding: 'utf8' },
+  );
+  if (gen.stdout) console.log('[Boot] prisma generate stdout:', gen.stdout.trim());
+  if (gen.stderr) console.log('[Boot] prisma generate stderr:', gen.stderr.trim());
+  console.log('[Boot] prisma generate exit =', gen.status);
 
   // 2. Push the schema only when the db file is missing or empty.
   let needPush = true;
