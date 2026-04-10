@@ -27,6 +27,7 @@ app.use(cookieParser());
 app.use('/api/v1/auth',      require('./routes/auth'));
 app.use('/api/v1/shipments', require('./routes/shipments'));
 app.use('/api/v1/reports',   require('./routes/reports'));
+app.use('/api/v1/products',  require('./routes/products'));
 app.use('/api/v1/users',     require('./routes/users'));
 
 // Audit log via users router (mounted separately for clean URL)

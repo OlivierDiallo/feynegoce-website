@@ -167,6 +167,7 @@ app.post('/api/contact', (req, res) => {
 app.use('/api/v1/auth',      require('./investor-dashboard/server/routes/auth'));
 app.use('/api/v1/shipments', require('./investor-dashboard/server/routes/shipments'));
 app.use('/api/v1/reports',   require('./investor-dashboard/server/routes/reports'));
+app.use('/api/v1/products',  require('./investor-dashboard/server/routes/products'));
 app.use('/api/v1/users',     require('./investor-dashboard/server/routes/users'));
 
 // Audit log endpoint

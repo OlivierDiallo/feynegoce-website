@@ -1,27 +1,66 @@
-import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Package, TrendingUp, Ship, ChevronRight } from 'lucide-react'
+import { Package, ChevronRight, Plus } from 'lucide-react'
 import api from '../utils/api'
+import { useAuth } from '../context/AuthContext'
+import Modal, { FormRow } from '../components/Modal'
 import { fmtCurrency, fmtPct } from '../utils/formatters'
 
 export default function Products() {
+  const { user } = useAuth()
   const navigate = useNavigate()
+  const qc       = useQueryClient()
+  const [newOpen, setNewOpen] = useState(false)
+
   const { data, isLoading } = useQuery({
     queryKey: ['products'],
     queryFn:  () => api.get('/reports/by-product').then(r => r.data),
   })
   const products = data?.products || []
 
+  const create = useMutation({
+    mutationFn: body => api.post('/products', body).then(r => r.data),
+    onSuccess:  () => {
+      qc.invalidateQueries({ queryKey: ['products'] })
+      setNewOpen(false)
+    },
+  })
+
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Products</h1>
-        <p className="text-slate-500 text-sm mt-0.5">Performance metrics by product category</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Products</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Performance metrics by product category</p>
+        </div>
+        {user?.role === 'admin' && (
+          <button className="btn-primary" onClick={() => setNewOpen(true)}>
+            <Plus size={16} /> New Product
+          </button>
+        )}
       </div>
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[1,2,3].map(i => <div key={i} className="h-48 bg-slate-200 rounded-2xl animate-pulse" />)}
+        </div>
+      ) : products.length === 0 ? (
+        <div className="card p-12 text-center">
+          <div className="w-12 h-12 mx-auto rounded-2xl bg-accent/10 flex items-center justify-center mb-3">
+            <Package size={22} className="text-accent" />
+          </div>
+          <p className="text-slate-700 font-semibold">No products yet</p>
+          <p className="text-slate-400 text-sm mt-1">
+            {user?.role === 'admin'
+              ? 'Create your first product category to start tracking shipments.'
+              : 'An admin needs to create product categories first.'}
+          </p>
+          {user?.role === 'admin' && (
+            <button className="btn-primary mt-5 mx-auto" onClick={() => setNewOpen(true)}>
+              <Plus size={16} /> New Product
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -75,6 +114,47 @@ export default function Products() {
           ))}
         </div>
       )}
+
+      <NewProductModal
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        onCreate={create.mutateAsync}
+        error={create.error?.response?.data?.error}
+        loading={create.isPending}
+      />
     </div>
+  )
+}
+
+function NewProductModal({ open, onClose, onCreate, error, loading }) {
+  const [form, setForm] = useState({ name: '', description: '' })
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    try {
+      await onCreate(form)
+      setForm({ name: '', description: '' })
+    } catch { /* error surfaced via prop */ }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="New Product">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <FormRow label="Name" required>
+          <input className="input" value={form.name} onChange={set('name')} placeholder="Tires" required />
+        </FormRow>
+        <FormRow label="Description">
+          <textarea className="input" rows={3} value={form.description} onChange={set('description')} placeholder="Short description of the product category…" />
+        </FormRow>
+        {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-2">{error}</div>}
+        <div className="flex justify-end gap-3 pt-2">
+          <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? 'Creating…' : 'Create Product'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   )
 }
